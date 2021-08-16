@@ -1,7 +1,8 @@
 import { Component, ChangeDetectionStrategy } from '@angular/core';
 
-import { EMPTY, of } from 'rxjs';
-import { catchError, tap } from 'rxjs/operators';
+import { BehaviorSubject, combineLatest, EMPTY, of, Subject } from 'rxjs';
+import { catchError, filter, map, tap } from 'rxjs/operators';
+import { ProductCategoryService } from '../product-categories/product-category.service';
 
 import { Product } from './product';
 import { ProductService } from './product.service';
@@ -9,31 +10,45 @@ import { ProductService } from './product.service';
 @Component({
   templateUrl: './product-list.component.html',
   styleUrls: ['./product-list.component.css'],
-  // changeDetection: ChangeDetectionStrategy.OnPush,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProductListComponent {
   pageTitle = 'Product List';
   errorMessage = '';
-  categories;
 
-  // products$ = this.productService.products$
-  products$ = this.productService.productsWithCategory$
+  private categorySelectedSubject = new BehaviorSubject<number>(0);
+  categorySelectedAction$ = this.categorySelectedSubject.asObservable();
+
+  products$ = combineLatest([
+    this.productService.productsWithCategory$,
+    this.categorySelectedAction$
+  ]).pipe(
+    tap(([products, categoryId]) => console.log(products, categoryId)),
+    map(([products, categoryId]) => products.filter(product => 
+      categoryId ? product.categoryId === categoryId : true )),
+    catchError(err => { 
+      tap(products => console.table(products)),
+      this.errorMessage = err;
+      return EMPTY;
+    })    
+  )
+
+  categories$ = this.productCategoryService.productCategories$
     .pipe(
-      catchError(err => { 
-        tap(products => console.table(products)),
+      catchError(err => {
         this.errorMessage = err;
-        // return of([])
         return EMPTY;
       })
-  );
+    )
 
-  constructor(private productService: ProductService) { }
+  constructor(private productService: ProductService,
+    private productCategoryService: ProductCategoryService) { }
 
   onAdd(): void {
     console.log('Not yet implemented');
   }
 
   onSelected(categoryId: string): void {
-    console.log('Not yet implemented');
+    this.categorySelectedSubject.next(+categoryId)
   }
 }
